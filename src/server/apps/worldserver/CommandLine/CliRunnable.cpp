@@ -31,9 +31,15 @@
 #else
 #include "Chat.h"
 #include "ChatCommand.h"
+#include "Log.h"
+
+#include <chrono>
 #include <cstring>
+#include <iostream>
 #include <readline/history.h>
 #include <readline/readline.h>
+#include <thread>
+#include <unistd.h>
 #endif
 
 static constexpr char CLI_PREFIX[] = "AC> ";
@@ -125,6 +131,16 @@ void CliThread()
         ::rl_completer_word_break_characters = &BLANK;
     }
     ::rl_event_hook = &Acore::Impl::Readline::cli_hook_func;
+
+    // The interactive CLI needs a real terminal. Under systemd/docker, stdin is
+    // /dev/null: readline() returns NULL immediately without setting feof, which
+    // (before this guard) busy-looped the "AC> " prompt and flooded stdout at
+    // ~3GB/h. For non-interactive stdin we fall back to blocking getline (mirrors
+    // the Windows redirected-input path) and idle on EOF instead of spamming.
+    bool const cliInteractive = isatty(STDIN_FILENO) != 0;
+    bool cliInputEof = false;
+    if (!cliInteractive)
+        LOG_INFO("server.worldserver", "Stdin is not a terminal — interactive console disabled (no 'AC> ' prompt).");
 #endif
 
     if (sConfigMgr->GetOption<bool>("BeepAtStart", true))
@@ -202,12 +218,33 @@ void CliThread()
         }
 
 #else
-        char* command_str = readline(CLI_PREFIX);
-        ::rl_bind_key('\t', ::rl_complete);
-        if (command_str != nullptr)
+        if (!cliInteractive)
         {
-            command = command_str;
-            free(command_str);
+            // Redirected/non-interactive stdin (systemd /dev/null, or piped commands).
+            // getline blocks for real input and never prints a prompt, so no flood.
+            if (cliInputEof)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                continue;
+            }
+            if (!std::getline(std::cin, command))
+            {
+                // stdin EOF (pipe drained or /dev/null). It won't un-EOF, so stop
+                // reading and idle until shutdown — don't busy-loop and don't shut
+                // the world down just because the console detached.
+                cliInputEof = true;
+                continue;
+            }
+        }
+        else
+        {
+            char* command_str = readline(CLI_PREFIX);
+            ::rl_bind_key('\t', ::rl_complete);
+            if (command_str != nullptr)
+            {
+                command = command_str;
+                free(command_str);
+            }
         }
 #endif
 
