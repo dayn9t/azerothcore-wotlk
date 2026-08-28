@@ -4,7 +4,6 @@ AzerothCore is a C++ MMORPG server emulator for World of Warcraft 3.3.5a (WotLK)
 
 ## Agent rules
 
-- **Do not configure or build unless explicitly asked.** Builds are slow (CMake + compile of a large C++ codebase) and rarely needed to make code changes.
 - **Never edit SQL files outside `data/sql/updates/pending_db_*/`.** `data/sql/base/`, `data/sql/archive/`, and `data/sql/updates/db_*/` are immutable (do not modify).
 - **Do not run git commands that modify repo state** (commit, branch, merge, rebase, reset, push, …) unless explicitly requested, and do not include them in plans. Read-only git (status, diff, log) is fine.
 
