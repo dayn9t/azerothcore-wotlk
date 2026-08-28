@@ -9912,10 +9912,16 @@ void Player::ApplySpellMod(uint32 spellId, SpellModOp op, T& basevalue, Spell* s
         calculateSpellMod(mod);
     }
 
+    T const __scBefore = basevalue;
     if (op == SPELLMOD_CASTING_TIME || op == SPELLMOD_DURATION)
         basevalue = (basevalue + totalflat) > 0 ? (basevalue + totalflat) * totalmul : 0;
     else
         basevalue = (basevalue * totalmul) + totalflat;
+
+    // DIAGNOSTIC (secondary-class talent): is the talent SpellModifier consumed for Fireball?
+    if (spellId == 42833)
+        LOG_ERROR("sc.debug.talent", "ApplySpellMod Fireball op={} before={} after={} totalflat={} totalmul={} modsInQueue={}",
+            static_cast<int>(op), __scBefore, basevalue, totalflat, totalmul, m_spellMods[op].size());
 }
 
 template AC_GAME_API void Player::ApplySpellMod(uint32 spellId, SpellModOp op, int32& basevalue, Spell* spell, bool temporaryPet);
